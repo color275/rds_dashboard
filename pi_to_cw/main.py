@@ -1,24 +1,16 @@
 import boto3
 import time
-import datetime
-import pprint
 import json
 from base64 import encode
-from opensearchpy import OpenSearch, RequestsHttpConnection, AWSV4SignerAuth
-import textwrap
 import os
 
 region = 'ap-northeast-2'
-
 pi_client = boto3.client('pi', region)
 rds_client = boto3.client('rds', region)
 cw_client = boto3.client('cloudwatch', region)
 
-host = 'vpc-test-aponilxfo5qn2nfe6mitxf2rxu.ap-northeast-2.es.amazonaws.com' # cluster endpoint, for example: my-test-domain.us-east-1.es.amazonaws.com
-service = 'es'
-credentials = boto3.Session().get_credentials()
-auth = AWSV4SignerAuth(credentials, region, service)
-
+# 모니터링 인스턴스 식별
+# rds intance의 tag key/value가 pi_monitor/true로 마킹된 instance 만 대상으로 식별  
 def get_pi_instances():
     response = rds_client.describe_db_instances()
     
@@ -31,14 +23,14 @@ def get_pi_instances():
                 break
     return target_instance
 
-def get_resource_metrics(instance, query, gather_interval, gather_period):
-    pprint.pprint(instance)
+# boto3 의 get_resource_metrics 를 통해 metric 수집
+def get_resource_metrics(instance, query, start_time, end_time, gather_period):
     return {
                 'pi_response': pi_client.get_resource_metrics(
                              ServiceType='RDS',
                              Identifier=instance['DbiResourceId'],
-                             StartTime=time.time() - gather_interval,
-                             EndTime=time.time(),
+                             StartTime=start_time,
+                             EndTime=end_time,
                              PeriodInSeconds=gather_period,
                              MetricQueries=query
                              ), 
@@ -56,16 +48,18 @@ def str_encode(string):
     encoded_str = string.encode("ascii","ignore")
     return remove_non_ascii(encoded_str.decode())
 
+# 전처리된 메트릭을 cloudwatch 로 전송
 def send_cloudwatch_data(get_info, cloudwatch_namespace):
     
     metric_data = []
-    for metric_response in get_info['pi_response']['MetricList']: #dataoints and key
-        metric_dict = metric_response['Key']  #db.load.avg
+    for metric_response in get_info['pi_response']['MetricList']:
+        metric_dict = metric_response['Key']
         metric_name = metric_dict['Metric']
-
      
         is_metric_dimensions = False
         formatted_dims = []
+        
+        # Dimensions 포함된 메트릭
         if metric_dict.get('Dimensions'):
             metric_dimensions = metric_response['Key']['Dimensions']  # return a dictionary
             
@@ -109,18 +103,23 @@ def send_cloudwatch_data(get_info, cloudwatch_namespace):
             cw_client.put_metric_data(
             Namespace= cloudwatch_namespace,
             MetricData= metric_data)
-        except ClientError as error:
+        except Exception as error:
             raise ValueError('The parameters you provided are incorrect: {}'.format(error))
 
 def main():
     pi_instances = get_pi_instances()
 
+    # 수집할 메트릭 저장 디렉토리
     directory_path = "./metric"
+    # CloudWatch Namespace
     cloudwatch_namespace = 'PI-METRIC'
-    gather_interval = 600
+    # 수집 기간
+    start_time = time.time() - 600 # 600초 전
+    end_time = time.time()
+    # inteval (sec)
     gather_period = 60
 
-
+    # ./metric 디렉토리 내 json 파일 읽기
     for filename in os.listdir(directory_path):
         if filename.endswith(".json"):
             file_path = os.path.join(directory_path, filename)
@@ -129,7 +128,7 @@ def main():
                 metric_queries = json.load(file)
 
             for instance in pi_instances:
-                get_info = get_resource_metrics(instance, metric_queries, gather_interval, gather_period)
+                get_info = get_resource_metrics(instance, metric_queries, start_time, end_time, gather_period)
                 if get_info['pi_response']:
                     send_cloudwatch_data(get_info, cloudwatch_namespace)
             
