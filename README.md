@@ -1,10 +1,10 @@
 # rds_dashboard
 
-## 메트릭 경로
+## Metric Path
 ./metric/*.json
 
-## 실행
-- 환경 : python3.8
+## Run
+- env : python3.8
 ```bash
 (venv) [ec2-user@ip-10-10-101-168 rds_dashboard]$ pip install -r requirements.txt
 (venv) [ec2-user@ip-10-10-101-168 rds_dashboard]$ cd pi_to_cw
