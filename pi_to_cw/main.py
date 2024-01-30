@@ -19,10 +19,6 @@ service = 'es'
 credentials = boto3.Session().get_credentials()
 auth = AWSV4SignerAuth(credentials, region, service)
 
-interval = 600
-period = 60
-
-
 def get_pi_instances():
     response = rds_client.describe_db_instances()
     
@@ -35,15 +31,15 @@ def get_pi_instances():
                 break
     return target_instance
 
-def get_resource_metrics(instance, query):
+def get_resource_metrics(instance, query, gather_interval, gather_period):
     pprint.pprint(instance)
     return {
                 'pi_response': pi_client.get_resource_metrics(
                              ServiceType='RDS',
                              Identifier=instance['DbiResourceId'],
-                             StartTime=time.time() - interval,
+                             StartTime=time.time() - gather_interval,
                              EndTime=time.time(),
-                             PeriodInSeconds=period,
+                             PeriodInSeconds=gather_period,
                              MetricQueries=query
                              ), 
                 'identifier' : {
@@ -121,6 +117,8 @@ def main():
 
     directory_path = "./metric"
     cloudwatch_namespace = 'PI-METRIC'
+    gather_interval = 600
+    gather_period = 60
 
 
     for filename in os.listdir(directory_path):
@@ -131,7 +129,7 @@ def main():
                 metric_queries = json.load(file)
 
             for instance in pi_instances:
-                get_info = get_resource_metrics(instance, metric_queries)
+                get_info = get_resource_metrics(instance, metric_queries, gather_interval, gather_period)
                 if get_info['pi_response']:
                     send_cloudwatch_data(get_info, cloudwatch_namespace)
             
