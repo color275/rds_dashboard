@@ -1,0 +1,17 @@
+[
+    {
+        "Metric": "db.Users.Threads_connected.avg"
+    },
+    {
+        "Metric": "db.Users.Connections.avg"
+    },
+    {
+        "Metric": "db.Users.Threads_running.avg"
+    },
+    {
+        "Metric": "db.Users.Aborted_clients.avg"
+    },
+    {
+        "Metric": "db.Users.Aborted_connects.avg"
+    }
+]

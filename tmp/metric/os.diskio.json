@@ -1,0 +1,44 @@
+[
+    {
+        "Metric": "os.diskIO.auroraStorage.readLatency.avg"
+    },
+    {
+        "Metric": "os.diskIO.auroraStorage.writeLatency.avg"
+    },
+    {
+        "Metric": "os.diskIO.rdstemp.await.avg"
+    },
+    {
+        "Metric": "os.diskIO.auroraStorage.readIOsPS.avg"
+    },
+    {
+        "Metric": "os.diskIO.auroraStorage.writeIOsPS.avg"
+    },
+    {
+        "Metric": "os.diskIO.rdstemp.readIOsPS.avg"
+    },
+    {
+        "Metric": "os.diskIO.rdstemp.writeIOsPS.avg"
+    },
+    {
+        "Metric": "os.diskIO.auroraStorage.readThroughput.avg"
+    },
+    {
+        "Metric": "os.diskIO.auroraStorage.writeThroughput.avg"
+    },
+    {
+        "Metric": "os.diskIO.rdstemp.readKbPS.avg"
+    },
+    {
+        "Metric": "os.diskIO.rdstemp.writeKbPS.avg"
+    },
+    {
+        "Metric": "os.diskIO.auroraStorage.diskQueueDepth.avg"
+    },
+    {
+        "Metric": "os.diskIO.rdstemp.avgQueueLen.avg"
+    },
+    {
+        "Metric": "os.network.tx.avg"
+    }
+]

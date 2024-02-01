@@ -1,0 +1,8 @@
+[
+    {
+        "Metric": "db.Transactions.trx_rseg_history_len.avg"
+    },
+    {
+        "Metric": "db.Transactions.active_transactions.avg"
+    }
+]

@@ -1,0 +1,11 @@
+[
+    {
+        "Metric": "db.Locks.innodb_row_lock_waits.avg"
+    },
+    {
+        "Metric": "db.Locks.innodb_deadlocks.avg"
+    },
+    {
+        "Metric": "db.Locks.Innodb_row_lock_time.avg"
+    }
+]

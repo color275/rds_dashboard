@@ -1,0 +1,32 @@
+[
+    {
+        "Metric": "os.memory.outOfMemoryKillCount.avg"
+    },
+    {
+        "Metric": "os.memory.active.avg"
+    },
+    {
+        "Metric": "os.memory.buffers.avg"
+    },
+    {
+        "Metric": "os.memory.cached.avg"
+    },
+    {
+        "Metric": "os.memory.db.cache.avg"
+    },
+    {
+        "Metric": "os.memory.db.residentSetSize.avg"
+    },
+    {
+        "Metric": "os.memory.db.swap.avg"
+    },
+    {
+        "Metric": "os.memory.dirty.avg"
+    },
+    {
+        "Metric": "os.memory.free.avg"
+    },
+    {
+        "Metric": "os.memory.total.avg"
+    }
+]

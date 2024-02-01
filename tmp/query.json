@@ -1,0 +1,23 @@
+[
+    {
+        "Metric": "os.cpuUtilization.steal.avg"
+    },
+    {
+        "Metric": "os.cpuUtilization.guest.avg"
+    },
+    {
+        "Metric": "os.cpuUtilization.irq.avg"
+    },
+    {
+        "Metric": "os.cpuUtilization.wait.avg"
+    },
+    {
+        "Metric": "os.cpuUtilization.user.avg"
+    },
+    {
+        "Metric": "os.cpuUtilization.system.avg"
+    },
+    {
+        "Metric": "os.cpuUtilization.nice.avg"
+    }
+]
