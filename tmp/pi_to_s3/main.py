@@ -9,6 +9,7 @@ import pandas as pd
 import pytz 
 from pprint import pprint
 import sys
+import json
 
 
 region = 'ap-northeast-2'
@@ -143,30 +144,34 @@ for db_identifier, db_instance_name in db_identifier_dict.items() :
                         'db_instance_name': db_instance_name,
                         'last_update_time': current_time
                     },
-                    ConditionExpression='attribute_not_exists(db_sql_tokenized_id) AND attribute_not_exists(db_identifier)'  
+                    ConditionExpression='attribute_not_exists(db_sql_tokenized_id)'                      
+                    # ConditionExpression='attribute_not_exists(db_sql_tokenized_id) AND attribute_not_exists(db_identifier)'  
                 )
 
                 data = {
-                    "db_sql_id": db_sql_id,
                     "db_sql_tokenized_id": db_sql_tokenized_id,
-                    "db_identifier": db_identifier,
-                    "db_instance_name": db_instance_name,
-                    # "last_update_time": timestamp.astimezone(korea_tz).strftime("%Y-%m-%d.%H:%M:%S"),
-                    "last_update_time": timestamp.astimezone(korea_tz).strftime("%Y-%m-%d %H:%M:%S"),
-                    "cpu_load": v
-                }       
-                
-                sql_list.append(data)
-
-                data_detail = {
                     "db_sql_id": db_sql_id,
                     "db_identifier": db_identifier,
                     "db_instance_name": db_instance_name,
                     "sql_fulltext": get_sql_detail(db_identifier, db_sql_id),
-                    "last_update_time": timestamp.astimezone(korea_tz).strftime("%Y-%m-%d %H:%M:%S")
-                }
+                    "last_update_time": timestamp.astimezone(korea_tz).strftime("%Y-%m-%d %H:%M:%S"),
+                    "cpu_load": v
+                }       
+                
+                # sql_list.append(data)
 
-                full_text_list.append(data_detail)
+                # JSON 문자열로 데이터 변환
+                json_data = json.dumps(data)
+
+                # 날짜 및 시간 포맷 설정
+                current_time = datetime.now().astimezone(korea_tz)
+                year_month_day = current_time.strftime("year=%Y/month=%m/day=%d")
+                # S3 버킷 경로 설정
+                s3_path = f'sql_fulltext/{year_month_day}'
+                file_name = f'{db_sql_tokenized_id}.json'
+                # S3에 파일 업로드
+                s3.put_object(Bucket='chiholee-sql', Key=f"{s3_path}/{file_name}", Body=json_data)
+
             except dynamodb.meta.client.exceptions.ConditionalCheckFailedException:
                 # db_sql_tokenized_id가 이미 존재하는 경우 예외 처리
                 # print(f"Skipped existing db_sql_tokenized_id: {db_sql_tokenized_id}")
@@ -174,48 +179,49 @@ for db_identifier, db_instance_name in db_identifier_dict.items() :
             
             
 
-    if sql_list:
-        # 데이터를 Parquet 형식으로 변환
-        df = pd.DataFrame(sql_list)
+    # if sql_list:
+    #     # 데이터를 Parquet 형식으로 변환
+    #     df = pd.DataFrame(sql_list)
 
-        # 날짜 및 시간 포맷 설정
-        current_time = datetime.now().astimezone(korea_tz)
-        year_month_day = current_time.strftime("year=%Y/month=%m/day=%d")
+    #     # 날짜 및 시간 포맷 설정
+    #     current_time = datetime.now().astimezone(korea_tz)
+    #     year_month_day = current_time.strftime("year=%Y/month=%m/day=%d")
 
-        # S3 버킷 경로 설정
-        s3_path = f'sql_tokenized/{year_month_day}/'
+    #     # S3 버킷 경로 설정
+    #     s3_path = f'sql_fulltext/{year_month_day}/'
+    #     # s3_path = f'sql_tokenized/{year_month_day}/'
 
-        # Parquet 파일로 저장
-        parquet_file = f'{current_time.strftime("%H:%M:%S")}.parquet'
-        table = pa.Table.from_pandas(df)
-        pq.write_table(table, parquet_file)
+    #     # Parquet 파일로 저장
+    #     parquet_file = f'{current_time.strftime("%H:%M:%S")}.parquet'
+    #     table = pa.Table.from_pandas(df)
+    #     pq.write_table(table, parquet_file)
 
-        # S3에 Parquet 파일 업로드
-        s3.upload_file(parquet_file, 'chiholee-sql', f'{s3_path}{parquet_file}')
+    #     # S3에 Parquet 파일 업로드
+    #     s3.upload_file(parquet_file, 'chiholee-sql', f'{s3_path}{parquet_file}')
 
-        # 로컬에 생성된 Parquet 파일 삭제
-        os.remove(parquet_file)
+    #     # 로컬에 생성된 Parquet 파일 삭제
+    #     os.remove(parquet_file)
 
     #####################################
 
-    if full_text_list:
-        # 데이터를 Parquet 형식으로 변환
-        df = pd.DataFrame(full_text_list)
+    # if full_text_list:
+    #     # 데이터를 Parquet 형식으로 변환
+    #     df = pd.DataFrame(full_text_list)
 
-        # 날짜 및 시간 포맷 설정
-        current_time = datetime.now().astimezone(korea_tz)
-        year_month_day = current_time.strftime("year=%Y/month=%m/day=%d")
+    #     # 날짜 및 시간 포맷 설정
+    #     current_time = datetime.now().astimezone(korea_tz)
+    #     year_month_day = current_time.strftime("year=%Y/month=%m/day=%d")
 
-        # S3 버킷 경로 설정
-        s3_path = f'sql_fulltext/{year_month_day}/'
+    #     # S3 버킷 경로 설정
+    #     s3_path = f'sql_fulltext/{year_month_day}/'
 
-        # Parquet 파일로 저장
-        parquet_file = f'{current_time.strftime("%H:%M:%S")}.parquet'
-        table = pa.Table.from_pandas(df)
-        pq.write_table(table, parquet_file)
+    #     # Parquet 파일로 저장
+    #     parquet_file = f'{current_time.strftime("%H:%M:%S")}.parquet'
+    #     table = pa.Table.from_pandas(df)
+    #     pq.write_table(table, parquet_file)
 
-        # S3에 Parquet 파일 업로드
-        s3.upload_file(parquet_file, 'chiholee-sql', f'{s3_path}{parquet_file}')
+    #     # S3에 Parquet 파일 업로드
+    #     s3.upload_file(parquet_file, 'chiholee-sql', f'{s3_path}{parquet_file}')
 
-        # 로컬에 생성된 Parquet 파일 삭제
-        os.remove(parquet_file)
+    #     # 로컬에 생성된 Parquet 파일 삭제
+    #     os.remove(parquet_file)
