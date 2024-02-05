@@ -29,6 +29,9 @@ db_identifier_list = [
                         'db-ZIBJAVYAOHMU2UHYNWTAVXHWNY'
                     ]
 
+api_call_count = []
+api_call_count.append(0)
+
 def get_sql_detail(db_identifier, groupidentifier) :
     reponse = pi_client.get_dimension_key_details(
         ServiceType='RDS',
@@ -42,7 +45,11 @@ def get_sql_detail(db_identifier, groupidentifier) :
     for metric in reponse['Dimensions'] :
         if metric.get('Value') :
             sql = metric.get('Value')
-            break
+            break    
+
+    print("# call get_dimension_key_details")
+    api_call_count[0] += 1
+
     return sql    
 
 def get_sql(db_identifier) :
@@ -61,7 +68,29 @@ def get_sql(db_identifier) :
         EndTime=time.time(),
         PeriodInSeconds=1
     )
+
+    print("# call get_resource_metrics")
+    api_call_count[0] += 1
+
     return response
+
+def find_first_sql_command(text):
+    # SQL 명령어와 해당 명령어의 위치를 저장할 딕셔너리
+    positions = {}
+    
+    # 각 SQL 명령어에 대해 문자열 내 위치 검색
+    for command in ["SELECT", "INSERT", "UPDATE", "DELETE"]:
+        pos = text.upper().find(command)
+        if pos != -1:
+            positions[command] = pos
+    
+    # 위치 딕셔너리가 비어있지 않다면, 가장 먼저 나오는 명령어 반환
+    if positions:
+        # 위치에 따라 정렬하고 첫 번째 명령어 반환
+        return sorted(positions, key=positions.get)[0]
+    else:
+        return "OTHER"
+
 
 db_identifier_dict = {}
 
@@ -148,12 +177,16 @@ for db_identifier, db_instance_name in db_identifier_dict.items() :
                     # ConditionExpression='attribute_not_exists(db_sql_tokenized_id) AND attribute_not_exists(db_identifier)'  
                 )
 
+                sql_fulltext = get_sql_detail(db_identifier, db_sql_id)
+                sql_type = find_first_sql_command(sql_fulltext)
+
                 data = {
                     "db_sql_tokenized_id": db_sql_tokenized_id,
                     "db_sql_id": db_sql_id,
                     "db_identifier": db_identifier,
                     "db_instance_name": db_instance_name,
-                    "sql_fulltext": get_sql_detail(db_identifier, db_sql_id),
+                    "sql_type": sql_type,
+                    "sql_fulltext": sql_fulltext,
                     "last_update_time": timestamp.astimezone(korea_tz).strftime("%Y-%m-%d %H:%M:%S"),
                     "cpu_load": v
                 }       
@@ -176,6 +209,8 @@ for db_identifier, db_instance_name in db_identifier_dict.items() :
                 # db_sql_tokenized_id가 이미 존재하는 경우 예외 처리
                 # print(f"Skipped existing db_sql_tokenized_id: {db_sql_tokenized_id}")
                 pass
+
+print("# api_call_count : ", api_call_count[0])
             
             
 
