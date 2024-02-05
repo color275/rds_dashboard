@@ -1,0 +1,32 @@
+[
+    {
+        "Metric": "db.load.avg",
+        "GroupBy": {
+            "Group": "db.wait_event"
+        }
+    },
+    {
+        "Metric": "db.load.avg",
+        "GroupBy": {
+            "Group": "db.sql_tokenized"
+        }
+    },
+    {
+        "Metric": "db.load.avg",
+        "GroupBy": {
+            "Group": "db.host"
+        }
+    },
+    {
+        "Metric": "db.load.avg",
+        "GroupBy": {
+            "Group": "db"
+        }
+    },
+    {
+        "Metric": "db.load.avg",
+        "GroupBy": {
+            "Group": "db.user"
+        }
+    }
+]

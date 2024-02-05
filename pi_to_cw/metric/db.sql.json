@@ -1,0 +1,14 @@
+[
+    {
+        "Metric": "db.SQL.Innodb_rows_deleted.avg"
+    },
+    {
+        "Metric": "db.SQL.Innodb_rows_updated.avg"
+    },
+    {
+        "Metric": "db.SQL.Innodb_rows_inserted.avg"
+    },
+    {
+        "Metric": "db.SQL.Queries.avg"
+    }
+]

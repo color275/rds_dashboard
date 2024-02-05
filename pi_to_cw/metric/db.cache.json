@@ -1,0 +1,11 @@
+[
+    {
+        "Metric": "db.Cache.innoDB_buffer_pool_hits.avg"
+    },
+    {
+        "Metric": "db.Cache.Innodb_buffer_pool_reads.avg"
+    },
+    {
+        "Metric": "db.Cache.innoDB_buffer_pool_hit_rate.avg"
+    }
+]
