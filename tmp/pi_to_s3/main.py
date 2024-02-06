@@ -32,8 +32,10 @@ db_identifier_list = [
 api_call_count = []
 api_call_count.append(0)
 
+
+
 def get_sql_detail(db_identifier, groupidentifier) :
-    reponse = pi_client.get_dimension_key_details(
+    response = pi_client.get_dimension_key_details(
         ServiceType='RDS',
         Identifier=db_identifier,
         Group='db.sql',
@@ -42,15 +44,15 @@ def get_sql_detail(db_identifier, groupidentifier) :
             'db.sql.statement'
         ]
     )
-    for metric in reponse['Dimensions'] :
+    
+    for metric in response['Dimensions'] :
         if metric.get('Value') :
-            sql = metric.get('Value')
+            sql = metric['Value']
             break    
 
     print("# call get_dimension_key_details")
     api_call_count[0] += 1
-
-    return sql    
+    return sql.replace('\n', ' ').replace('\r', '')   
 
 def get_sql(db_identifier) :
     response = pi_client.get_resource_metrics(
@@ -178,6 +180,7 @@ for db_identifier, db_instance_name in db_identifier_dict.items() :
                 )
 
                 sql_fulltext = get_sql_detail(db_identifier, db_sql_id)
+                
                 sql_type = find_first_sql_command(sql_fulltext)
 
                 data = {
@@ -211,52 +214,4 @@ for db_identifier, db_instance_name in db_identifier_dict.items() :
                 pass
 
 print("# api_call_count : ", api_call_count[0])
-            
-            
-
-    # if sql_list:
-    #     # 데이터를 Parquet 형식으로 변환
-    #     df = pd.DataFrame(sql_list)
-
-    #     # 날짜 및 시간 포맷 설정
-    #     current_time = datetime.now().astimezone(korea_tz)
-    #     year_month_day = current_time.strftime("year=%Y/month=%m/day=%d")
-
-    #     # S3 버킷 경로 설정
-    #     s3_path = f'sql_fulltext/{year_month_day}/'
-    #     # s3_path = f'sql_tokenized/{year_month_day}/'
-
-    #     # Parquet 파일로 저장
-    #     parquet_file = f'{current_time.strftime("%H:%M:%S")}.parquet'
-    #     table = pa.Table.from_pandas(df)
-    #     pq.write_table(table, parquet_file)
-
-    #     # S3에 Parquet 파일 업로드
-    #     s3.upload_file(parquet_file, 'chiholee-sql', f'{s3_path}{parquet_file}')
-
-    #     # 로컬에 생성된 Parquet 파일 삭제
-    #     os.remove(parquet_file)
-
-    #####################################
-
-    # if full_text_list:
-    #     # 데이터를 Parquet 형식으로 변환
-    #     df = pd.DataFrame(full_text_list)
-
-    #     # 날짜 및 시간 포맷 설정
-    #     current_time = datetime.now().astimezone(korea_tz)
-    #     year_month_day = current_time.strftime("year=%Y/month=%m/day=%d")
-
-    #     # S3 버킷 경로 설정
-    #     s3_path = f'sql_fulltext/{year_month_day}/'
-
-    #     # Parquet 파일로 저장
-    #     parquet_file = f'{current_time.strftime("%H:%M:%S")}.parquet'
-    #     table = pa.Table.from_pandas(df)
-    #     pq.write_table(table, parquet_file)
-
-    #     # S3에 Parquet 파일 업로드
-    #     s3.upload_file(parquet_file, 'chiholee-sql', f'{s3_path}{parquet_file}')
-
-    #     # 로컬에 생성된 Parquet 파일 삭제
-    #     os.remove(parquet_file)
+         
