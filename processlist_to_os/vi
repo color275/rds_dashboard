@@ -1,0 +1,7 @@
+[Unit]
+Description=Python Script Execution every 10 seconds
+
+[Service]
+Type=simple
+ExecStart=/home/ec2-user/resource_dashboard/rds_dashboard/processlist_to_os/main.py
+
