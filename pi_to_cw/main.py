@@ -4,6 +4,7 @@ import json
 from base64 import encode
 import os
 from botocore.exceptions import ClientError
+# from pprint import pprint
 
 region = 'ap-northeast-2'
 pi_client = boto3.client('pi', region)
@@ -12,7 +13,7 @@ cw_client = boto3.client('cloudwatch', region)
 
 # 모니터링 인스턴스 식별
 # rds intance의 tag key/value가 pi_monitor/true로 마킹된 instance 만 대상으로 식별  
-def get_pi_instances():
+def get_pi_instances(tag_key, tag_value):
     response = rds_client.describe_db_instances()
     
     target_instance = []
@@ -20,28 +21,69 @@ def get_pi_instances():
     for instance in response['DBInstances']:
         if instance.get('PerformanceInsightsEnabled') :
             for tag in instance.get('TagList', []):
-                if tag.get('Key') == 'pi_monitor' and tag.get('Value') == 'true':
+                if tag.get('Key') == tag_key and tag.get('Value') == tag_value:
                     target_instance.append(instance)
                     break
     return target_instance
 
 # boto3 의 get_resource_metrics 를 통해 metric 수집
+# https://docs.aws.amazon.com/ko_kr/AmazonRDS/latest/AuroraUserGuide/USER_PerfInsights_Counters.html#USER_PerfInsights_Counters.OS
 def get_resource_metrics(instance, query, start_time, end_time, gather_period):
+
+    all_metrics = []
+    next_token = None
+
     try :
-        return {
-                    'pi_response': pi_client.get_resource_metrics(
+        while True :
+            if next_token :
+                response = pi_client.get_resource_metrics(
+                                ServiceType='RDS',
+                                Identifier=instance['DbiResourceId'],
+                                StartTime=start_time,
+                                EndTime=end_time,
+                                PeriodInSeconds=gather_period,
+                                MetricQueries=query,
+                                NextToken=next_token
+                                )
+            else :
+                response = pi_client.get_resource_metrics(
                                 ServiceType='RDS',
                                 Identifier=instance['DbiResourceId'],
                                 StartTime=start_time,
                                 EndTime=end_time,
                                 PeriodInSeconds=gather_period,
                                 MetricQueries=query
-                                ), 
-                    'identifier' : {
-                                    'dbclusteridentifier': instance['DBClusterIdentifier'],
-                                    'dbinstanceidentifier': instance['DBInstanceIdentifier']
-                    }
+                                )
+            
+            response_dict = {
+                'pi_response' : response,
+                'identifier' : {
+                                'dbclusteridentifier': instance['DBClusterIdentifier'],
+                                'dbinstanceidentifier': instance['DBInstanceIdentifier']
                 }
+            }
+            all_metrics.append(response_dict)
+            next_token = response.get('NextToken', None)
+
+            if not next_token :
+                break
+        
+        return all_metrics
+
+        # return {
+        #             'pi_response': pi_client.get_resource_metrics(
+        #                         ServiceType='RDS',
+        #                         Identifier=instance['DbiResourceId'],
+        #                         StartTime=start_time,
+        #                         EndTime=end_time,
+        #                         PeriodInSeconds=gather_period,
+        #                         MetricQueries=query
+        #                         ), 
+        #             'identifier' : {
+        #                             'dbclusteridentifier': instance['DBClusterIdentifier'],
+        #                             'dbinstanceidentifier': instance['DBInstanceIdentifier']
+        #             }
+        #         }
     except ClientError as error:
         print(f"Error...")
         # 오류 발생 시, 오류 정보를 포함한 응답 반환
@@ -87,31 +129,30 @@ def send_cloudwatch_data(get_info, cloudwatch_namespace):
             is_metric_dimensions = True
        
         for datapoint in metric_response['DataPoints']:
-            value = datapoint.get('Value', None)
-            if value:
-                if is_metric_dimensions:
-                    metric_data.append({
-                        'MetricName': metric_name,
-                        'Dimensions': formatted_dims,
-                        'Timestamp': datapoint['Timestamp'],
-                        'Value': round(datapoint['Value'], 2)
-                    })
-                else:
-                    metric_data.append({
-                        'MetricName': metric_name,
-                        'Dimensions': [
-                            {
-                                'Name':'DBClusterIdentifier',    
-                                'Value':get_info['identifier']['dbclusteridentifier']
-                            },
-                            {
-                                'Name':'DBInstanceIdentifier',    
-                                'Value':get_info['identifier']['dbinstanceidentifier']
-                            }
-                        ],
-                        'Timestamp': datapoint['Timestamp'],
-                        'Value': round(datapoint['Value'], 2)
-                    }) 
+            value = datapoint.get('Value', 0)
+            if is_metric_dimensions:
+                metric_data.append({
+                    'MetricName': metric_name,
+                    'Dimensions': formatted_dims,
+                    'Timestamp': datapoint['Timestamp'],
+                    'Value': round(value,2)
+                })
+            else:
+                metric_data.append({
+                    'MetricName': metric_name,
+                    'Dimensions': [
+                        {
+                            'Name':'DBClusterIdentifier',    
+                            'Value':get_info['identifier']['dbclusteridentifier']
+                        },
+                        {
+                            'Name':'DBInstanceIdentifier',    
+                            'Value':get_info['identifier']['dbinstanceidentifier']
+                        }
+                    ],
+                    'Timestamp': datapoint['Timestamp'],
+                    'Value': round(value,2)
+                }) 
     
     if metric_data:
         try:
@@ -122,36 +163,41 @@ def send_cloudwatch_data(get_info, cloudwatch_namespace):
             raise ValueError('The parameters you provided are incorrect: {}'.format(error))
 
 def main():
-    pi_instances = get_pi_instances()
 
-    # 수집할 메트릭 저장 디렉토리
+    ########################################
+    ## Variable
+    ########################################
     directory_path = "./metric"
-    # CloudWatch Namespace
     cloudwatch_namespace = 'PI-METRIC-CHIHOLEE'
-    # 수집 기간
-    start_time = time.time() - 600 # 600초 전
+    start_time = time.time() - 600 
     end_time = time.time()
-    # inteval (sec)
     gather_period = 60
+    tag_key = "pi_monitor"
+    tag_value = "true"
+    #########################################
+    
+    pi_instances = get_pi_instances(tag_key, tag_value)
+    
+    for filename in os.listdir(directory_path):
+        
+        if filename == 'test.json' :
+            continue
+        
+        if filename.endswith(".json"):
+            
+            file_path = os.path.join(directory_path, filename)
+            
+            if os.path.getsize(file_path) > 0:
+                with open(file_path, 'r') as file:
+                    metric_queries = json.load(file)
 
-    try :
-        # ./metric 디렉토리 내 json 파일 읽기
-        for filename in os.listdir(directory_path):
-            if filename.endswith(".json"):
-                file_path = os.path.join(directory_path, filename)
-                
-                if os.path.getsize(file_path) > 0:
-                    with open(file_path, 'r') as file:
-                        metric_queries = json.load(file)
-
-                    for instance in pi_instances:
-                        get_info = get_resource_metrics(instance, metric_queries, start_time, end_time, gather_period)
+                for instance in pi_instances:
+                    all_metrics = get_resource_metrics(instance, metric_queries, start_time, end_time, gather_period)
+                    for get_info in all_metrics :
                         if get_info['pi_response']:
                             send_cloudwatch_data(get_info, cloudwatch_namespace)
-                    
-                    print(f"Processing {filename}: {len(metric_queries)} metrics Complete!")
-    except Exception as e:
-        print(f"error : {e}")
+                
+                print(f"Processing {filename}: {len(metric_queries)} metrics Complete!")
 
 if __name__ == "__main__":
 	main()

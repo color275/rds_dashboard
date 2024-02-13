@@ -1,5 +1,8 @@
 [
     {
+        "Metric": "os.cpuUtilization.total.avg"
+    },
+    {
         "Metric": "os.cpuUtilization.steal.avg"
     },
     {

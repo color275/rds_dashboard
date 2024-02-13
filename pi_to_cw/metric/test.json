@@ -1,0 +1,5 @@
+[
+    {
+        "Metric": "os.diskIO.auroraStorage.readLatency.avg"
+    }
+]

@@ -2,12 +2,11 @@ import boto3
 import mysql.connector
 import json
 from pprint import pprint
-import time
 import pytz 
 from datetime import datetime
+import urllib.parse
 
 region = 'ap-northeast-2'
-athena = boto3.client('athena', region_name=region)
 s3 = boto3.client('s3', region_name=region)
 
 korea_tz = pytz.timezone('Asia/Seoul')
@@ -28,8 +27,6 @@ tobe_db = {
     'password':'admin1234'
 }
 
-
-
 def find_and_print_table(json_obj, result=None):
     if result is None:
         result = []
@@ -42,6 +39,7 @@ def find_and_print_table(json_obj, result=None):
                 index_name = value.get('key', "Full Scan")
 
                 result.append(f"{table_name} / {access_type} / {index_name}")
+                find_and_print_table(value, result)
 
             else:
                 find_and_print_table(value, result)
@@ -49,6 +47,7 @@ def find_and_print_table(json_obj, result=None):
         for item in json_obj:
             find_and_print_table(item, result)
 
+    # pprint(result)
     return result
 
 def execute_plan(db, sql) :
@@ -84,6 +83,7 @@ def execute_plan(db, sql) :
         explain_json = json.loads(explain_result[0])
 
         # pprint(explain_json)
+        # print("####################")
 
         return find_and_print_table(explain_json), None
 
@@ -96,119 +96,129 @@ def execute_plan(db, sql) :
         cursor.close()
         connection.close()
 
+def lambda_handler(event, context):
 
-# SQL 쿼리 실행
-query = """
-SELECT db_sql_tokenized_id, db_sql_id, db_identifier, db_instance_name, sql_type, sql_fulltext
-FROM datalake01.sql_fulltext
-"""
-query_start = athena.start_query_execution(
-    QueryString=query,
-    ResultConfiguration={
-        'OutputLocation': 's3://chiholee-athena/',
-    }
-)
+    bucket = event['Records'][0]['s3']['bucket']['name']
+    key = urllib.parse.unquote_plus(event['Records'][0]['s3']['object']['key'], encoding='utf-8')
 
-# 쿼리 실행 ID
-query_execution_id = query_start['QueryExecutionId']
+    response = s3.get_object(Bucket=bucket, Key=key)
+        
+    # 파일 내용을 읽고 JSON 데이터로 파싱합니다.
+    text = response["Body"].read().decode()
+    data = json.loads(text)
 
-# 쿼리 실행 상태 확인
-status = 'RUNNING'
-while status in ['RUNNING', 'QUEUED']:
-    time.sleep(5)  # 상태 확인 사이에 대기
-    query_status = athena.get_query_execution(QueryExecutionId=query_execution_id)
-    status = query_status['QueryExecution']['Status']['State']
+    db_sql_tokenized_id = data['db_sql_tokenized_id']
+    db_sql_id = data['db_sql_id']
+    db_identifier = data['db_identifier']
+    db_cluster_name = data['db_cluster_name']
+    db_instance_name = data['db_instance_name']
+    sql_type = data['sql_type']
+    sql_fulltext = data['sql_fulltext']
+    last_update_time = data['last_update_time']
+    cpu_load = data['cpu_load']
 
 
-
-if status == 'SUCCEEDED':
-    result = athena.get_query_results(QueryExecutionId=query_execution_id)
-    # 결과 데이터를 딕셔너리로 변환
-    # 컬럼 정보 추출
-    columns = [col['Label'] for col in result['ResultSet']['ResultSetMetadata']['ColumnInfo']]
     
-    # 데이터 추출
-    sql_list = []
-    for row in result['ResultSet']['Rows'][1:]:  # 첫 번째 행은 컬럼 이름이므로 제외
-        # 각 행의 데이터를 딕셔너리 형태로 변환
-        row_data = {columns[i]: value.get('VarCharValue', '') for i, value in enumerate(row['Data'])}
-        sql_list.append(row_data)
-    
-    for sql in sql_list :
-        if sql['sql_type'] != 'OTHER' :
-            for db in [asis_db, tobe_db] :
-                print(sql['sql_fulltext'])
-                plan_result, error = execute_plan(db, sql['sql_fulltext'])
+    if sql_type != 'OTHER' :
+        for db in [asis_db, tobe_db] :
+            plan_result, error = execute_plan(db, sql_fulltext)
 
-                data_list = []
-                ind = 1
-                if plan_result :
-                    for plan in plan_result :
-                        data = {
-                            "id": ind,
-                            "target_db": db['alias'],
-                            "db_sql_tokenized_id": sql['db_sql_tokenized_id'],
-                            "db_sql_id": sql['db_sql_id'],
-                            "db_identifier": sql['db_identifier'],
-                            "db_instance_name": sql['db_instance_name'],
-                            "sql_type": sql['sql_type'],
-                            "sql_plan": plan,
-                            "sql_fulltext": sql['sql_fulltext'],
-                            "last_update_time": datetime.now().astimezone(korea_tz).strftime("%Y-%m-%d %H:%M:%S")
-                        }
-                        
-                        data_list.append(data)
-                        ind += 1
-                else :
+            print(plan_result)
+
+            data_list = []
+            ind = 1
+            if plan_result :
+                for plan in plan_result :
                     data = {
                         "id": ind,
                         "target_db": db['alias'],
-                        "db_sql_tokenized_id": sql['db_sql_tokenized_id'],
-                        "db_sql_id": sql['db_sql_id'],
-                        "db_identifier": sql['db_identifier'],
-                        "db_instance_name": sql['db_instance_name'],
-                        "sql_type": sql['sql_type'],
-                        "sql_plan": "",
-                        "sql_fulltext": sql['sql_fulltext'],
-                        "last_update_time": datetime.now().astimezone(korea_tz).strftime("%Y-%m-%d %H:%M:%S"),
-                        "error": error
+                        "db_sql_tokenized_id": db_sql_tokenized_id,
+                        "db_sql_id": db_sql_id,
+                        "db_identifier": db_identifier,
+                        "db_cluster_name": db_cluster_name,
+                        "db_instance_name": db_instance_name,
+                        "sql_type": sql_type,
+                        "sql_plan": plan,
+                        "sql_fulltext": sql_fulltext,
+                        "last_update_time": datetime.now().astimezone(korea_tz).strftime("%Y-%m-%d %H:%M:%S")
                     }
                     
                     data_list.append(data)
                     ind += 1
+            else :
+                data = {
+                    "id": ind,
+                    "target_db": db['alias'],
+                    "db_sql_tokenized_id": db_sql_tokenized_id,
+                    "db_sql_id": db_sql_id,
+                    "db_identifier": db_identifier,
+                    "db_cluster_name": db_cluster_name,
+                    "db_instance_name": db_instance_name,
+                    "sql_type": sql_type,
+                    "sql_plan": "",
+                    "sql_fulltext": sql_fulltext,
+                    "last_update_time": datetime.now().astimezone(korea_tz).strftime("%Y-%m-%d %H:%M:%S"),
+                    "error": error
+                }
+                
+                data_list.append(data)
+                ind += 1
 
-                json_data = '\n'.join(json.dumps(item) for item in data_list)
+            json_data = '\n'.join(json.dumps(item) for item in data_list)
 
-                # 날짜 및 시간 포맷 설정
-                current_time = datetime.now().astimezone(korea_tz)
-                year_month_day = current_time.strftime("year=%Y/month=%m/day=%d")
-                # S3 버킷 경로 설정
-                s3_path = f'sql_plan/{year_month_day}'
-                file_name = f"{db['alias']}-{sql['db_sql_tokenized_id']}.json"
-                # S3에 파일 업로드
-                s3.put_object(Bucket='chiholee-sql', Key=f"{s3_path}/{file_name}", Body=json_data)
-                    
-
-
+            # 날짜 및 시간 포맷 설정
+            current_time = datetime.now().astimezone(korea_tz)
+            year_month_day = current_time.strftime("year=%Y/month=%m/day=%d")
+            # S3 버킷 경로 설정
+            s3_path = f'sql_plan/{year_month_day}'
+            file_name = f"{db['alias']}_{db_sql_tokenized_id}.json"
+            # S3에 파일 업로드
+            s3.put_object(Bucket='chiholee-sql', Key=f"{s3_path}/{file_name}", Body=json_data)
+                        
 
 
+test_event = {
+  "Records": [
+    {
+      "eventVersion": "2.1",
+      "eventSource": "aws:s3",
+      "awsRegion": "us-west-2",
+      "eventTime": "2021-01-01T12:00:00.000Z",
+      "eventName": "ObjectCreated:Put",
+      "userIdentity": {
+        "principalId": "AWS:AAAABBBBCCCCDDDD"
+      },
+      "requestParameters": {
+        "sourceIPAddress": "123.123.123.123"
+      },
+      "responseElements": {
+        "x-amz-request-id": "ExampleRequestId",
+        "x-amz-id-2": "ExampleId2"
+      },
+      "s3": {
+        "s3SchemaVersion": "1.0",
+        "configurationId": "ExampleConfig",
+        "bucket": {
+          "name": "chiholee-sql",
+          "ownerIdentity": {
+            "principalId": "A3NL1KOZZKExample"
+          },
+          "arn": "arn:aws:s3:::example-bucket"
+        },
+        "object": {
+          "key": "sql_fulltext/year=2024/month=02/day=12/91BB112A23E91EE9753B7B78714748574662B421.json",
+          "size": 1024,
+          "eTag": "0123456789abcdef0123456789abcdef",
+          "sequencer": "0A1B2C3D4E5F678901"
+        }
+      }
+    }
+  ]
+}
 
+# context 객체는 이 예제에서는 사용하지 않지만, 필요에 따라 모방할 수 있습니다.
+test_context = {}
 
-
-#     # 결과 가져오기
-#     result = athena.get_query_results(QueryExecutionId=query_execution_id)
-
-#     first_row = True
-#     for row in result['ResultSet']['Rows']:        
-#         if first_row :
-#             first_row = False            
-#             continue
-        
-#         print("## " + row['Data'][1]['VarCharValue'])
-#         sql = row['Data'][3]['VarCharValue']
-#         # print(sql)        
-#         for host in db_hosts :
-#             execute_plan(host, sql)
-#             print("")
-# else:
-#     print(f"Query failed with status '{status}'")
+if __name__ == "__main__":
+    # 테스트 event와 context를 lambda_handler에 전달
+    response = lambda_handler(test_event, test_context)
