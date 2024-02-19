@@ -1,4 +1,3 @@
-# PI-SQL-CHIHOLEE
 import boto3
 import time
 import datetime
@@ -86,6 +85,20 @@ def get_resource_metrics(instance, query, start_time, end_time, gather_period):
         
         return all_metrics
 
+        # return {
+        #             'pi_response': pi_client.get_resource_metrics(
+        #                         ServiceType='RDS',
+        #                         Identifier=instance['DbiResourceId'],
+        #                         StartTime=start_time,
+        #                         EndTime=end_time,
+        #                         PeriodInSeconds=gather_period,
+        #                         MetricQueries=query
+        #                         ), 
+        #             'identifier' : {
+        #                             'dbclusteridentifier': instance['DBClusterIdentifier'],
+        #                             'dbinstanceidentifier': instance['DBInstanceIdentifier']
+        #             }
+        #         }
     except ClientError as error:
         print(f"Error...")
         # 오류 발생 시, 오류 정보를 포함한 응답 반환
@@ -120,6 +133,8 @@ def remove_quotes(string):
 def send_opensearch_group_metric_data(get_info, os_index_nm, start_time, end_time, gather_period):
     metric_data = []
     
+    
+    # pprint.pprint(get_info['pi_response']['MetricList'])
     for metric_response in get_info['pi_response']['MetricList']:
         metric_dict = metric_response['Key']
         metric_name = metric_dict['Metric']
@@ -132,6 +147,9 @@ def send_opensearch_group_metric_data(get_info, os_index_nm, start_time, end_tim
             for key in metric_dimensions:
                 metric_name = key.split(".")[1]
                 formatted_dims.append({'Name': replace_dot_to_underbar(key), 'Value': remove_quotes(str_encode(metric_dimensions[key]))})
+                
+                # if key == 'db.sql_tokenized.statement' :
+                #     db_sql_short_statement = textwrap.shorten(metric_dimensions[key], width=150, placeholder='...')
                 
                 if key == 'db.sql_tokenized.id' :
                     db_sql_tokenized_id = metric_dimensions['db.sql_tokenized.id']
@@ -161,6 +179,8 @@ def send_opensearch_group_metric_data(get_info, os_index_nm, start_time, end_tim
                             db_sql_db_id = dim['Dimensions']['db.sql.db_id']
                             break
 
+                    # print(db_sql_id)
+
                     query_metric_response = pi_client.get_dimension_key_details(
                                                             ServiceType='RDS',
                                                             Identifier=db_resource_id,
@@ -176,52 +196,85 @@ def send_opensearch_group_metric_data(get_info, os_index_nm, start_time, end_tim
                         for query in query_metric_response['Dimensions'] :
                             if query.get('Value') :
                                 sql_fulltext = query.get('Value')
-                                sql_short_fulltext = textwrap.shorten(sql_fulltext, width=150, placeholder='...')
                                 break
                     
+                    # print(sql_fulltext)
+
+                    
+                    # print(db_sql_tokenized_id)
                     query_metric_response =  pi_client.describe_dimension_keys(
                                                 ServiceType='RDS',
                                                 Identifier=db_resource_id,
-                                                StartTime=time.time() - 300,
+                                                StartTime=time.time() - 600 ,
                                                 EndTime=time.time(),
                                                 Metric="db.load.avg",
                                                 PeriodInSeconds=gather_period,
                                                 GroupBy={
                                                     'Group': 'db.sql_tokenized',
+                                                    # 'Limit': 1
                                                 },
                                                 Filter={
                                                     'db.sql_tokenized.id': 	db_sql_tokenized_id
                                                 },
+                                                # AdditionalMetrics=[
+                                                #                     'db.sql_tokenized.stats.sum_rows_examined_per_call.avg', # 호출당 검사된 행
+                                                #                     'db.sql_tokenized.stats.sum_rows_affected_per_call.avg', # 호출당 영향을 받는 행
+                                                #                     'db.sql_tokenized.stats.sum_timer_wait_per_call.avg', # 호출당 평균 지연 시간(단위: ms)
+                                                #                     'db.sql_tokenized.stats.count_star_per_sec.avg'
+                                                #                 ] # 초당 호출 수
                                                 
                                                 # https://docs.aws.amazon.com/ko_kr/AmazonRDS/latest/AuroraUserGuide/USER_PerfInsights.UsingDashboard.AnalyzeDBLoad.AdditionalMetrics.MySQL.html
                                                 AdditionalMetrics = [
                                                     'db.sql_tokenized.stats.count_star_per_sec.avg',
+                                                    'db.sql_tokenized.stats.sum_timer_wait_per_sec.avg',
+                                                    'db.sql_tokenized.stats.sum_select_full_join_per_sec.avg',
+                                                    'db.sql_tokenized.stats.sum_select_range_check_per_sec.avg',
+                                                    'db.sql_tokenized.stats.sum_select_scan_per_sec.avg',
+                                                    'db.sql_tokenized.stats.sum_sort_merge_passes_per_sec.avg',
+                                                    'db.sql_tokenized.stats.sum_sort_scan_per_sec.avg',
+                                                    'db.sql_tokenized.stats.sum_sort_range_per_sec.avg',
+                                                    'db.sql_tokenized.stats.sum_sort_rows_per_sec.avg',
+                                                    'db.sql_tokenized.stats.sum_rows_affected_per_sec.avg',
+                                                    'db.sql_tokenized.stats.sum_rows_examined_per_sec.avg',
+                                                    'db.sql_tokenized.stats.sum_rows_sent_per_sec.avg',
+                                                    'db.sql_tokenized.stats.sum_created_tmp_disk_tables_per_sec.avg',
                                                     'db.sql_tokenized.stats.sum_created_tmp_tables_per_sec.avg',
                                                     'db.sql_tokenized.stats.sum_lock_time_per_sec.avg',
-                                                    'db.sql_tokenized.stats.sum_lock_time_per_call.avg',
-                                                    'db.sql_tokenized.stats.sum_rows_examined_per_sec.avg',
-                                                    'db.sql_tokenized.stats.sum_rows_examined_per_call.avg',
-                                                    'db.sql_tokenized.stats.sum_rows_sent_per_sec.avg',
-                                                    'db.sql_tokenized.stats.sum_rows_sent_per_call.avg',
-                                                    'db.sql_tokenized.stats.sum_timer_wait_per_sec.avg',
                                                     'db.sql_tokenized.stats.sum_timer_wait_per_call.avg',
+                                                    'db.sql_tokenized.stats.sum_select_full_join_per_call.avg',
+                                                    'db.sql_tokenized.stats.sum_select_range_check_per_call.avg',
+                                                    'db.sql_tokenized.stats.sum_select_scan_per_call.avg',
+                                                    'db.sql_tokenized.stats.sum_sort_merge_passes_per_call.avg',
+                                                    'db.sql_tokenized.stats.sum_sort_scan_per_call.avg',
+                                                    'db.sql_tokenized.stats.sum_sort_range_per_call.avg',
+                                                    'db.sql_tokenized.stats.sum_sort_rows_per_call.avg',
+                                                    'db.sql_tokenized.stats.sum_rows_affected_per_call.avg',
+                                                    'db.sql_tokenized.stats.sum_rows_examined_per_call.avg',
+                                                    'db.sql_tokenized.stats.sum_rows_sent_per_call.avg',
+                                                    'db.sql_tokenized.stats.sum_created_tmp_disk_tables_per_call.avg',
+                                                    'db.sql_tokenized.stats.sum_created_tmp_tables_per_call.avg',
+                                                    'db.sql_tokenized.stats.sum_lock_time_per_call.avg',
                                                 ],
+                                                # MaxResults=1
                                             )
+                    # pprint(query_metric_response)
                     
                     query_metric_dimensions_list = query_metric_response['Keys']
                     for query_metric_dimensions in query_metric_dimensions_list :
                         if 'AdditionalMetrics' in query_metric_dimensions :
                             for key in query_metric_dimensions['AdditionalMetrics'] :
+                                # db.sql_tokenized.stats.count_star_per_sec.avg
+                                
                                 formatted_dims.append({'Name': replace_dot_to_underbar(key), 'Value': query_metric_dimensions['AdditionalMetrics'][key]})
 
             formatted_dims.append({'Name': 'cluster_name', 'Value': get_info['identifier']['dbclusteridentifier']})
             formatted_dims.append({'Name': 'instance_name', 'Value': get_info['identifier']['dbinstanceidentifier']})
             formatted_dims.append({'Name': 'sql_fulltext', 'Value': sql_fulltext})
-            formatted_dims.append({'Name': 'sql_short_fulltext', 'Value': sql_short_fulltext})
             formatted_dims.append({'Name': 'db_sql_id', 'Value': db_sql_id})
             formatted_dims.append({'Name': 'db_sql_db_id', 'Value': db_sql_db_id})
             is_metric_dimensions = True
 
+        # pprint.pprint(formatted_dims)
         for datapoint in metric_response['DataPoints']:
             value = datapoint.get('Value', 0)
             if is_metric_dimensions:
@@ -231,6 +284,22 @@ def send_opensearch_group_metric_data(get_info, os_index_nm, start_time, end_tim
                     'Timestamp': datapoint['Timestamp'],
                     'Value': round(value, 2)
                 })
+            # else:
+            #     metric_data.append({
+            #         'MetricName': metric_name,
+            #         'Dimensions': [
+            #             {
+            #                 'Name':'DBClusterIdentifier',    
+            #                 'Value':get_info['identifier']['dbclusteridentifier']
+            #             },
+            #             {
+            #                 'Name': 'DBInstanceIdentifier',
+            #                 'Value': get_info['identifier']['dbinstanceidentifier']
+            #             }
+            #         ],
+            #         'Timestamp': datapoint['Timestamp'],
+            #         'Value': round(datapoint['Value'], 2)
+            #     }) 
 
     if metric_data:
         try:
@@ -238,11 +307,14 @@ def send_opensearch_group_metric_data(get_info, os_index_nm, start_time, end_tim
                 document = {
                     'timestamp': metric['Timestamp'].isoformat(),
                     'metric_name': metric['MetricName'],
+                    # 'value': metric['Value']
                 }
                 if metric['Dimensions']:
                     for dim in metric['Dimensions']:
                         document[dim['Name']] = dim['Value']
                 
+                
+                # pprint(document)
                 es_client.index(
                     index=os_index_nm,
                     body=document
@@ -278,18 +350,13 @@ def lambda_handler(event, context):
                     metric_queries = json.load(file)
 
                 for instance in pi_instances:
+                    # get_info = get_resource_metrics(instance, metric_queries, start_time, end_time, gather_period)
                     all_metrics = get_resource_metrics(instance, metric_queries, start_time, end_time, gather_period)
                     for get_info in all_metrics :
                         if get_info['pi_response']:
                             send_opensearch_group_metric_data(get_info, os_index_nm, start_time, end_time, gather_period)
                 
                 print(f"Processing {filename}: {len(metric_queries)} metrics Complete!")
-    return {
-        'statusCode': 200,
-        'body': json.dumps('Finish!')
-    }
-
-
 
 test_event = {}
 test_context = {}

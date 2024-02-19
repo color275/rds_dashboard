@@ -225,13 +225,14 @@ def lambda_handler(event, context):
     start_time = time.time() - 60 
     end_time = time.time()
     gather_period = 60
-    tag_key = "pi_monitor_test"
+    tag_key = "pi_monitor"
     tag_value = "true"
     #########################################
     
     pi_instances = get_pi_instances(tag_key, tag_value)
 
     for filename in os.listdir(directory_path):
+        
         
         if filename.endswith(".json"):
             
@@ -245,12 +246,14 @@ def lambda_handler(event, context):
                     all_metrics = get_resource_metrics(instance, metric_queries, start_time, end_time, gather_period)
                     for get_info in all_metrics :
                         if get_info['pi_response']:  
-                            if filename == 'sql.json' :                          
+                            if filename == 'test.json' :                          
                                 send_sql_info_to_cloudwatch(get_info, cloudwatch_namespace)
                             else :
                                 send_metric_to_cloudwatch(get_info, cloudwatch_namespace)
                 
                 print(f"Processing {filename}: {len(metric_queries)} metrics Complete!")
+
+    
     
     return {
         'statusCode': 200,
