@@ -37,8 +37,5 @@
     },
     {
         "Metric": "os.diskIO.rdstemp.avgQueueLen.avg"
-    },
-    {
-        "Metric": "os.network.tx.avg"
     }
 ]

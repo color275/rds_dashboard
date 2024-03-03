@@ -36,6 +36,15 @@ def get_resource_metrics(instance, query, start_time, end_time, gather_period):
     next_token = None
 
     try :
+        instance_alias = None
+        for tag in instance.get('TagList', []):
+            if tag.get('Key') == 'Name' :
+                instance_alias = tag.get('Value')
+                break
+        
+        if instance_alias == None :
+            instance_alias = instance['DBInstanceIdentifier']
+
         while True :
             if next_token :
                 response = pi_client.get_resource_metrics(
@@ -61,7 +70,8 @@ def get_resource_metrics(instance, query, start_time, end_time, gather_period):
                 'pi_response' : response,
                 'identifier' : {
                                 'dbclusteridentifier': instance['DBClusterIdentifier'],
-                                'dbinstanceidentifier': instance['DBInstanceIdentifier']
+                                # 'dbinstanceidentifier': instance['DBInstanceIdentifier'],
+                                'instance_alias': instance_alias
                 }
             }
             all_metrics.append(response_dict)
@@ -78,7 +88,8 @@ def get_resource_metrics(instance, query, start_time, end_time, gather_period):
             'pi_response': None, 
             'identifier': {
                 'dbclusteridentifier': instance.get('DBClusterIdentifier', 'N/A'),
-                'dbinstanceidentifier': instance['DBInstanceIdentifier'],
+                # 'dbinstanceidentifier': instance['DBInstanceIdentifier'],
+                'instance_alias': instance_alias,
                 'error': str(error)
             }
         }
@@ -114,7 +125,8 @@ def send_metric_to_cloudwatch(get_info, cloudwatch_namespace):
                 formatted_dims.append(dict(Name=key, Value=str_encode(metric_dimensions[key])))
                 
             formatted_dims.append(dict(Name='DBClusterIdentifier', Value=get_info['identifier']['dbclusteridentifier']))
-            formatted_dims.append(dict(Name='DBInstanceIdentifier', Value=get_info['identifier']['dbinstanceidentifier']))
+            # formatted_dims.append(dict(Name='DBInstanceIdentifier', Value=get_info['identifier']['dbinstanceidentifier']))
+            formatted_dims.append(dict(Name='InstanceAlias', Value=get_info['identifier']['instance_alias']))
             is_metric_dimensions = True
        
         for datapoint in metric_response['DataPoints']:
@@ -134,9 +146,13 @@ def send_metric_to_cloudwatch(get_info, cloudwatch_namespace):
                             'Name':'DBClusterIdentifier',    
                             'Value':get_info['identifier']['dbclusteridentifier']
                         },
+                        # {
+                        #     'Name':'DBInstanceIdentifier',    
+                        #     'Value':get_info['identifier']['dbinstanceidentifier']
+                        # },
                         {
-                            'Name':'DBInstanceIdentifier',    
-                            'Value':get_info['identifier']['dbinstanceidentifier']
+                            'Name':'InstanceAlias',    
+                            'Value':get_info['identifier']['instance_alias']
                         }
                     ],
                     'Timestamp': datapoint['Timestamp'],
@@ -160,7 +176,7 @@ def send_sql_info_to_cloudwatch(get_info, cloudwatch_namespace):
         metric_name = metric_dict['Metric']
      
         is_metric_dimensions = False
-        formatted_dims = []
+        
         
         # Dimensions 포함된 메트릭
         if metric_dict.get('Dimensions'):
@@ -186,6 +202,7 @@ def send_sql_info_to_cloudwatch(get_info, cloudwatch_namespace):
                                                 },
                                                 AdditionalMetrics=[
                                                                     'db.sql_tokenized.stats.sum_timer_wait_per_call.avg', # 호출당 평균 지연 시간(단위: ms)
+                                                                    'db.sql_tokenized.stats.count_star_per_sec.avg', # 초당 호출 수
                                                                 ]
                                             )
             if query_metric_response.get('Keys') :
@@ -193,14 +210,15 @@ def send_sql_info_to_cloudwatch(get_info, cloudwatch_namespace):
                 for query_metric_dimensions in query_metric_dimensions_list :
                     if 'AdditionalMetrics' in query_metric_dimensions :
                         for key in query_metric_dimensions['AdditionalMetrics'] :
+                            formatted_dims = []
                             formatted_dims.append(dict(Name='metric_type', Value=replace_dot_to_underbar(key)))
                             value = query_metric_dimensions['AdditionalMetrics'][key]
                             metric_name = key.split(".")[1]
                             formatted_dims.append(dict(Name='cluster_name', Value=get_info['identifier']['dbclusteridentifier']))
-                            formatted_dims.append(dict(Name='instance_name', Value=get_info['identifier']['dbinstanceidentifier']))
+                            # formatted_dims.append(dict(Name='instance_name', Value=get_info['identifier']['dbinstanceidentifier']))
+                            formatted_dims.append(dict(Name='instance_alias', Value=get_info['identifier']['instance_alias']))
                             formatted_dims.append(dict(Name='db_sql_tokenized_db_id', Value=db_sql_tokenized_db_id))
                             formatted_dims.append(dict(Name='db_sql_tokenized_id', Value=db_sql_tokenized_id))
-
                             metric_data.append({
                                         'MetricName': metric_name,
                                         'Dimensions': formatted_dims,
@@ -221,11 +239,12 @@ def lambda_handler(event, context):
     ## Variable
     ########################################
     directory_path = "./metric"
-    cloudwatch_namespace = 'PI-METRIC-CHIHOLEE3'
+    cloudwatch_namespace = 'PI-METRIC-CHIHOLEE4'
+    # cloudwatch_namespace = 'TEST01'
     start_time = time.time() - 60 
     end_time = time.time()
     gather_period = 60
-    tag_key = "pi_monitor_test"
+    tag_key = "pi_monitor"
     tag_value = "true"
     #########################################
     

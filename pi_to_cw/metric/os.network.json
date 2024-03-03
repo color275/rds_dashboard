@@ -1,5 +1,8 @@
 [
     {
         "Metric": "os.network.rx.avg"
+    },
+    {
+        "Metric": "os.network.tx.avg"
     }
 ]

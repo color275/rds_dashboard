@@ -195,7 +195,6 @@ def send_opensearch_group_metric_data(get_info, os_index_nm, start_time, end_tim
                                                 
                                                 # https://docs.aws.amazon.com/ko_kr/AmazonRDS/latest/AuroraUserGuide/USER_PerfInsights.UsingDashboard.AnalyzeDBLoad.AdditionalMetrics.MySQL.html
                                                 AdditionalMetrics = [
-                                                    'db.sql_tokenized.stats.count_star_per_sec.avg',
                                                     'db.sql_tokenized.stats.sum_created_tmp_tables_per_sec.avg',
                                                     'db.sql_tokenized.stats.sum_lock_time_per_sec.avg',
                                                     'db.sql_tokenized.stats.sum_lock_time_per_call.avg',
@@ -204,6 +203,9 @@ def send_opensearch_group_metric_data(get_info, os_index_nm, start_time, end_tim
                                                     'db.sql_tokenized.stats.sum_rows_sent_per_sec.avg',
                                                     'db.sql_tokenized.stats.sum_rows_sent_per_call.avg',
                                                     'db.sql_tokenized.stats.sum_timer_wait_per_sec.avg',
+                                                    # 초당 호출 수
+                                                    'db.sql_tokenized.stats.count_star_per_sec.avg',
+                                                    # 호출당 평균 지연 시간(단위: ms)
                                                     'db.sql_tokenized.stats.sum_timer_wait_per_call.avg',
                                                 ],
                                             )
